@@ -1,0 +1,63 @@
+        -:    0:Source:ThreadPool.cpp
+        -:    1:#include "ThreadPool.hpp"
+        -:    2:
+        2:    3:ThreadPool::ThreadPool(size_t numThreads) : stopFlag(false) {
+        -:    4:    // Create the specified number of worker threads
+       10:    5:    for (size_t i = 0; i < numThreads; ++i) {
+        8:    6:        workers.emplace_back([this]() {
+        -:    7:            while (true) {
+       14:    8:                std::function<void()> task;
+        -:    9:                {
+        -:   10:                    // Lock the task queue
+       14:   11:                    std::unique_lock<std::mutex> lock(this->queueMutex);
+        -:   12:                    // Wait for a task to be available or for the stop flag to be set
+       42:   13:                    this->condition.wait(lock, [this]() { return this->stopFlag || !this->tasks.empty(); });
+        -:   14:                    // If the pool is stopping and there are no remaining tasks, exit the loop
+       14:   15:                    if (this->stopFlag && this->tasks.empty())
+       16:   16:                        return;
+        -:   17:                    // Retrieve the next task from the queue
+        6:   18:                    task = std::move(this->tasks.front());
+        6:   19:                    this->tasks.pop();
+       14:   20:                }
+        -:   21:                // Execute the task
+        6:   22:                task();
+       20:   23:            }
+        -:   24:        });
+        -:   25:    }
+        2:   26:}
+        -:   27:
+        6:   28:void ThreadPool::enqueue(std::function<void()> task) {
+        -:   29:    {
+        -:   30:        // Lock the queue before adding a new task
+        6:   31:        std::lock_guard<std::mutex> lock(queueMutex);
+        -:   32:        // Prevent enqueuing tasks if the pool is stopped
+        6:   33:        if (stopFlag)
+    #####:   34:            throw std::runtime_error("Enqueue on stopped ThreadPool");
+        -:   35:        // Add the task to the queue
+        6:   36:        tasks.push(std::move(task));
+        -:   37:        // Notify one waiting thread that a new task is available
+        6:   38:        condition.notify_one(); // Notify while holding the lock
+        6:   39:    }
+        6:   40:}
+        -:   41:
+        -:   42:
+        -:   43:
+        4:   44:void ThreadPool::stop() {
+        -:   45:    {
+        4:   46:        std::lock_guard<std::mutex> lock(queueMutex);
+        4:   47:        stopFlag = true;  // Safely signal all threads to stop
+        4:   48:        condition.notify_all();  // Wake up all threads
+        4:   49:    }
+        -:   50:    // Safely join all threads
+       20:   51:    for (std::thread &worker : workers) {
+       16:   52:        if (worker.joinable()) {
+        8:   53:            worker.join();
+        -:   54:        }
+        -:   55:    }
+        4:   56:}
+        -:   57:
+        -:   58:
+        2:   59:ThreadPool::~ThreadPool() {
+        -:   60:    // Ensure the thread pool is stopped and cleaned up
+        2:   61:    stop();
+        2:   62:}

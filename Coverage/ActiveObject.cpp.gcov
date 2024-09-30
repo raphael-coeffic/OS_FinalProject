@@ -1,0 +1,72 @@
+        -:    0:Source:ActiveObject.cpp
+        -:    1:#include "ActiveObject.hpp"
+        -:    2:
+        -:    3:template<typename T>
+        6:    4:ActiveObject<T>::ActiveObject(std::function<void(std::shared_ptr<Message<T>>)> func)
+        6:    5:    : running(true), processFunc(func) {
+        -:    6:    // Start the worker thread, which will continuously process tasks from the queue
+        6:    7:    worker = std::thread([this]() {
+       78:    8:        while (true) {
+       42:    9:            std::shared_ptr<Message<T>> msg;
+        -:   10:            {
+        -:   11:                // Lock the mutex to protect the task queue
+       42:   12:                std::unique_lock<std::mutex> lock(this->mtx);
+        -:   13:                
+        -:   14:                // Wait for either new tasks or a stop signal
+      125:   15:                this->cv.wait(lock, [this]() { return !this->tasks.empty() || !running; });
+        -:   16:                
+        -:   17:                // If running is false and the task queue is empty, exit the loop
+       42:   18:                if (!running && this->tasks.empty()) {
+       12:   19:                    return;
+        -:   20:                }
+        -:   21:                
+        -:   22:                // Pop the next task from the queue
+       36:   23:                msg = this->tasks.front();
+       36:   24:                this->tasks.pop();
+       42:   25:            }
+        -:   26:            
+        -:   27:            // Process the task using the provided processing function
+       36:   28:            processFunc(msg);
+        -:   29:        }
+        -:   30:    });
+        6:   31:}
+        -:   32:
+        -:   33:template<typename T>
+        6:   34:ActiveObject<T>::~ActiveObject() {
+        -:   35:    // Stop the worker thread when the object is destroyed
+        6:   36:    stop();
+        6:   37:}
+        -:   38:
+        -:   39:template<typename T>
+       36:   40:void ActiveObject<T>::send(std::shared_ptr<Message<T>> msg) {
+        -:   41:    {
+        -:   42:        // Lock the mutex to safely add a task to the queue
+       36:   43:        std::lock_guard<std::mutex> lock(mtx);
+        -:   44:        
+        -:   45:        // Add the new task to the task queue
+       36:   46:        tasks.push(msg);
+        -:   47:        
+        -:   48:        // Notify one waiting thread (if any) that a new task is available
+       36:   49:        cv.notify_one();
+       36:   50:    }
+       36:   51:}
+        -:   52:
+        -:   53:template<typename T>
+       12:   54:void ActiveObject<T>::stop() {
+        -:   55:    {
+        -:   56:        // Lock the mutex and set running to false, signaling the worker to stop
+       12:   57:        std::lock_guard<std::mutex> lock(mtx);
+       12:   58:        running = false;
+        -:   59:        
+        -:   60:        // Notify all threads to wake up, including the worker waiting for tasks
+       12:   61:        cv.notify_all();
+       12:   62:    }
+        -:   63:    
+        -:   64:    // If the worker thread is joinable, wait for it to finish execution
+       12:   65:    if (worker.joinable()) {
+        6:   66:        worker.join();
+        -:   67:    }
+       12:   68:}
+        -:   69:
+        -:   70:// Explicit instantiation of the template for type double
+        -:   71:template class ActiveObject<double>;

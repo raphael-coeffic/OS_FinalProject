@@ -1,0 +1,183 @@
+        -:    0:Source:Tree.hpp
+        -:    1:#ifndef TREE_HPP
+        -:    2:#define TREE_HPP
+        -:    3:
+        -:    4:#include "GraphBase.hpp"
+        -:    5:#include <queue>
+        -:    6:#include <limits>
+        -:    7:#include <cmath>
+        -:    8:#include <numeric>
+        -:    9:
+        -:   10:template<typename T>
+        -:   11:class Tree : public GraphBase<T> {
+        -:   12:private:
+        -:   13:    T totalWeight;  // Total weight of the tree
+        -:   14:
+        -:   15:public:
+        -:   16:    // Constructor to initialize a tree with 'V' vertices
+        8:   17:    Tree(int V) : GraphBase<T>(V), totalWeight(0) {}
+        -:   18:
+        -:   19:    // Add an edge to the tree and update the total weight
+       24:   20:    void addEdge(int u, int v, T weight) override {
+       24:   21:        checkVertex(u);  // Ensure the vertex 'u' is valid
+       24:   22:        checkVertex(v);  // Ensure the vertex 'v' is valid
+       24:   23:        this->adj[u].push_back(std::make_pair(v, weight)); // u -> v
+       24:   24:        this->adj[v].push_back(std::make_pair(u, weight)); // v -> u (undirected)
+       24:   25:        totalWeight += weight;  // Update total weight
+       24:   26:    }
+        -:   27:
+        -:   28:    // Remove an edge from the tree and update the total weight
+    #####:   29:    void removeEdge(int u, int v) override {
+    #####:   30:        checkVertex(u);  // Ensure the vertex 'u' is valid
+    #####:   31:        checkVertex(v);  // Ensure the vertex 'v' is valid
+    #####:   32:        bool found = false;
+        -:   33:        // Remove the edge u -> v
+    #####:   34:        for (auto it = this->adj[u].begin(); it != this->adj[u].end(); ++it) {
+    #####:   35:            if (it->first == v) {
+    #####:   36:                totalWeight -= it->second;  // Update total weight
+    #####:   37:                this->adj[u].erase(it);  // Remove the edge
+    #####:   38:                found = true;
+    #####:   39:                break;
+        -:   40:            }
+        -:   41:        }
+    #####:   42:        if (found) {
+        -:   43:            // Remove the edge v -> u
+    #####:   44:            for (auto it = this->adj[v].begin(); it != this->adj[v].end(); ++it) {
+    #####:   45:                if (it->first == u) {
+    #####:   46:                    this->adj[v].erase(it);  // Remove the reverse edge
+    #####:   47:                    break;
+        -:   48:                }
+        -:   49:            }
+        -:   50:        }
+    #####:   51:    }
+        -:   52:
+        -:   53:    // Print the tree
+    #####:   54:    void print() const override {
+    #####:   55:        for (size_t u = 0; u < this->adj.size(); ++u) {
+    #####:   56:            std::cout << "Vertex " << u << " is connected to:";
+    #####:   57:            for (auto [v, weight] : this->adj[u]) {
+    #####:   58:                std::cout << " " << v << " (Weight " << weight << ")";
+        -:   59:            }
+    #####:   60:            std::cout << std::endl;
+        -:   61:        }
+    #####:   62:        std::cout << "Total weight of the tree: " << totalWeight << std::endl;
+    #####:   63:    }
+        -:   64:
+        -:   65:    // Get the total weight of the MST
+        8:   66:    T getTotalWeight() const {
+        8:   67:        return totalWeight;
+        -:   68:    }
+        -:   69:
+        -:   70:    // Find the longest distance between two vertices (tree diameter)
+        8:   71:    T findLongestDistance() const {
+        8:   72:        int farthestNode = 0;
+        8:   73:        T maxDistance = 0;
+        -:   74:
+        -:   75:        // First BFS to find the farthest node from vertex 0
+        8:   76:        BFS(0, farthestNode, maxDistance);
+        -:   77:
+        -:   78:        // Second BFS starting from the farthest node found
+        8:   79:        maxDistance = 0;  // Reset max distance
+        8:   80:        BFS(farthestNode, farthestNode, maxDistance);
+        -:   81:
+        8:   82:        return maxDistance;
+        -:   83:    }
+        -:   84:
+        -:   85:    // Calculate the average distance between all pairs of vertices
+        8:   86:    double findAverageDistance() const {
+        8:   87:        int V = this->adj.size();
+        8:   88:        T totalDistance = 0;
+        8:   89:        int count = 0;
+        -:   90:
+        -:   91:        // Perform BFS for each vertex and calculate distances
+       40:   92:        for (int u = 0; u < V; ++u) {
+       32:   93:            std::vector<T> distances = BFS(u);
+       84:   94:            for (int v = u + 1; v < V; ++v) {
+       52:   95:                totalDistance += distances[v];
+       52:   96:                count++;
+        -:   97:            }
+        -:   98:        }
+        -:   99:
+       8*:  100:        if (count == 0) return 0;
+        8:  101:        return static_cast<double>(totalDistance) / count;
+        -:  102:    }
+        -:  103:
+        -:  104:    // Find the shortest distance between two distinct vertices
+        8:  105:    T findShortestDistance() const {
+        8:  106:        T minDistance = std::numeric_limits<T>::max();
+        8:  107:        int V = this->adj.size();
+        -:  108:
+        -:  109:        // Traverse all edges and find the minimum weight
+       40:  110:        for (int u = 0; u < V; ++u) {
+       80:  111:            for (auto [v, weight] : this->adj[u]) {
+       48:  112:                if (weight < minDistance) {
+        8:  113:                    minDistance = weight;
+        -:  114:                }
+        -:  115:            }
+        -:  116:        }
+        -:  117:
+        8:  118:        return minDistance;
+        -:  119:    }
+        -:  120:
+        -:  121:private:
+        -:  122:    // Check if the vertex index is valid
+       48:  123:    void checkVertex(int v) const {
+      48*:  124:        if (v < 0 || v >= static_cast<int>(this->adj.size())) {
+    #####:  125:            throw std::out_of_range("Invalid vertex index");
+        -:  126:        }
+       48:  127:    }
+        -:  128:
+        -:  129:    // Breadth-First Search (BFS) to find distances from a source vertex
+       32:  130:    std::vector<T> BFS(int src) const {
+       32:  131:        int V = this->adj.size();
+       32:  132:        std::vector<T> dist(V, std::numeric_limits<T>::max());  // Distance vector initialized to max
+       32:  133:        std::queue<int> q;
+        -:  134:
+       32:  135:        dist[src] = 0;  // Distance from source to itself is 0
+       32:  136:        q.push(src);
+        -:  137:
+        -:  138:        // BFS traversal
+      168:  139:        while (!q.empty()) {
+      136:  140:            int u = q.front();
+      136:  141:            q.pop();
+        -:  142:
+      344:  143:            for (auto [v, weight] : this->adj[u]) {
+      208:  144:                if (dist[v] == std::numeric_limits<T>::max()) {  // If not visited
+      104:  145:                    dist[v] = dist[u] + weight;  // Update distance
+      104:  146:                    q.push(v);  // Visit neighbor
+        -:  147:                }
+        -:  148:            }
+        -:  149:        }
+        -:  150:
+       64:  151:        return dist;  // Return distance array
+       32:  152:    }
+        -:  153:
+        -:  154:    // BFS to find the farthest node and the maximum distance
+       16:  155:    void BFS(int src, int& farthestNode, T& maxDistance) const {
+       16:  156:        int V = this->adj.size();
+       16:  157:        std::vector<T> dist(V, std::numeric_limits<T>::max());  // Distance vector initialized to max
+       16:  158:        std::queue<int> q;
+        -:  159:
+       16:  160:        dist[src] = 0;  // Distance from source to itself is 0
+       16:  161:        q.push(src);
+        -:  162:
+        -:  163:        // BFS traversal
+       80:  164:        while (!q.empty()) {
+       64:  165:            int u = q.front();
+       64:  166:            q.pop();
+        -:  167:
+      160:  168:            for (auto [v, weight] : this->adj[u]) {
+       96:  169:                if (dist[v] == std::numeric_limits<T>::max()) {  // If not visited
+       48:  170:                    dist[v] = dist[u] + weight;  // Update distance
+       48:  171:                    if (dist[v] > maxDistance) {  // Track the maximum distance
+       28:  172:                        maxDistance = dist[v];
+       28:  173:                        farthestNode = v;  // Update the farthest node
+        -:  174:                    }
+       48:  175:                    q.push(v);  // Visit neighbor
+        -:  176:                }
+        -:  177:            }
+        -:  178:        }
+       16:  179:    }
+        -:  180:};
+        -:  181:
+        -:  182:#endif // TREE_HPP
