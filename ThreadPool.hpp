@@ -8,36 +8,35 @@
 #include <queue>
 #include <functional>
 #include <atomic>
-#include <iostream>
 
 class ThreadPool {
 private:
     // Vector of worker threads
     std::vector<std::thread> workers;
 
-    // Mutex for synchronizing access to the task queue
-    std::mutex queueMutex;
+    // Mutex for synchronization
+    std::mutex mutex;
 
-    // Condition variable for worker thread notification
+    // Condition variable for notification
     std::condition_variable condition;
 
-    // Queue of tasks (each task is a callable object)
+    // Queue of tasks
     std::queue<std::function<void()>> tasks;
 
-    // Flag to indicate whether the thread pool is stopping
+    // Flag to stop the thread pool
     std::atomic<bool> stopFlag;
 
 public:
-    // Constructor that initializes the thread pool with a specified number of threads
+    // Constructor
     ThreadPool(size_t numThreads);
 
-    // Destructor to clean up the thread pool
+    // Destructor
     ~ThreadPool();
 
-    // Method to add a task to the queue for worker threads to execute
+    // Method to add a task
     void enqueue(std::function<void()> task);
 
-    // Method to stop the thread pool and wait for all threads to finish
+    // Method to stop the thread pool
     void stop();
 };
 
